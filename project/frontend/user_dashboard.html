@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard | ResQ Emergency</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Leaflet Maps -->
+    <!-- Leaflet Maps & Plugins -->
+    <!-- Leaflet Maps (Fallback) & Google Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- GOOGLE MAPS API: Replace YOUR_API_KEY below -->
+    <script>
+        // Default placeholder
+        let GOOGLE_MAPS_API_KEY = "";
+
+        async function fetchConfigAndLoadMaps() {
+            try {
+                // Fetch Key from Backend
+                const response = await fetch('http://localhost:5000/config');
+                const data = await response.json();
+                GOOGLE_MAPS_API_KEY = data.GOOGLE_MAPS_API_KEY;
+
+                if (GOOGLE_MAPS_API_KEY) {
+                    loadGoogleMapsScript();
+                } else {
+                    console.warn("Google Maps Key not found in backend config.");
+                }
+            } catch (error) {
+                console.error("Error fetching config:", error);
+            }
+        }
+
+        function loadGoogleMapsScript() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initGoogleMap&libraries=places,traffic`;
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+        }
+
+        // Initialize on load
+        window.addEventListener('load', fetchConfigAndLoadMaps);
+    </script>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <style>
+        #map {
+            height: 50vh;
+            /* Responsive height */
+            min-height: 300px;
+            max-height: 500px;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            z-index: 10;
+        }
+
+        .map-card {
+            padding: 1rem;
+            margin: 1rem;
+            position: relative;
+        }
+
+        .search-container {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .routing-info {
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        /* Hospital List Styles */
+        .hosp-list-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 1rem;
+        }
+
+        .hosp-col {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            padding: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .hosp-col h3 {
+            margin-top: 0;
+            color: var(--secondary);
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .hosp-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .hosp-item:last-child {
+            border-bottom: none;
+        }
+
+        .hosp-name {
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+
+        .hosp-stats {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .rank-badge {
+            background: #dcfce7;
+            color: #166534;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .dist-badge {
+            background: #f1f5f9;
+            color: #475569;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+
+        .map-toggle-btn {
+            background: transparent;
+            border: 1px solid var(--safe-blue);
+            color: var(--safe-blue);
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+
+        .map-toggle-btn:hover {
+            background: var(--safe-blue);
+            color: white;
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+            z-index: 900;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .nav-item.active {
+            color: var(--safe-blue);
+            font-weight: 600;
+        }
+
+        .nav-icon {
+            font-size: 1.5rem;
+            margin-bottom: 2px;
+        }
+
+        .hosp-tooltip {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #334155;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
+    <style>
+        :root {
+            --emergency-red: #ef4444;
+            --safe-blue: #3b82f6;
+            --bg-light: #f8fafc;
+        }
+
+        /* Mobile-First Responsive Design */
+        body {
+            background: var(--bg-light);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            padding-bottom: 80px;
+            /* Space for chatting panel */
+        }
+
+        main {
+            max-width: 800px;
+            margin: 0 auto;
+            padding-bottom: 2rem;
+        }
+
+        /* Responsive Container */
+        .status-panel,
+        .map-card,
+        .card {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            border-radius: 0;
+            /* Flat edge on mobile */
+        }
+
+        @media (min-width: 768px) {
+
+            .status-panel,
+            .map-card,
+            .card {
+                border-radius: 12px;
+                margin: 1rem auto;
+                max-width: 768px;
+                /* App-like max width on desktop */
+                width: 95%;
+            }
+
+            body {
+                padding-top: 10px;
+            }
+        }
+
+        .user-header {
+            background: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .status-panel {
+            padding: 1.5rem;
+            text-align: center;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        .emergency-btn {
+            background: var(--emergency-red);
+            color: white;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 2rem auto;
+            border: 8px solid #fee2e2;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+            text-align: center;
+            padding: 20px;
+        }
+
+        .emergency-btn:active {
+            transform: scale(0.95);
+        }
+
+        .emergency-btn span {
+            font-size: 1.25rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .form-card {
+            padding: 1.5rem;
+            margin: 1rem;
+        }
+
+        .tracking-card {
+            background: #fff;
+            margin: 1rem;
+            padding: 1.5rem;
+            border-radius: 16px;
+            border: 2px solid var(--safe-blue);
+        }
+
+        .timeline {
+            margin-top: 2rem;
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 14px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e2e8f0;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: -21px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #94a3b8;
+            border: 2px solid white;
+        }
+
+        .timeline-item.active::after {
+            background: var(--safe-blue);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+        }
+
+        .timeline-item.active {
+            font-weight: 600;
+            color: var(--safe-blue);
+        }
+
+        /* Floating AI Assistant */
+        #aiBotToggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: var(--safe-blue);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        #aiChatPanel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            height: 80vh;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+            display: none;
+            flex-direction: column;
+            z-index: 1001;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--safe-blue);
+            color: white;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .msg {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .msg-bot {
+            background: #f1f5f9;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        .msg-user {
+            background: var(--safe-blue);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        .chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .type-pill {
+            padding: 8px 16px;
+            border: 1px solid #cbd5e1;
+            border-radius: 99px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .type-pill.selected {
+            background: var(--emergency-red);
+            border-color: var(--emergency-red);
+            color: white;
+        }
+
+        .btn-call {
+            background: #22c55e;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+        }
+
+        .step-item {
+            background: #f8fafc;
+            border-left: 4px solid var(--safe-blue);
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .step-item b {
+            font-weight: 600;
+            color: var(--secondary);
+        }
+
+        .step-dist {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 4px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="user-header">
+        <div style="font-weight: 800; font-size: 1.5rem; color: var(--safe-blue);">ResQ ⚡</div>
+        <div id="userProfile" style="display:flex; gap:10px; align-items:center;">
+            <div style="text-align: right;">
+                <div id="uName">Loading...</div>
+                <a href="#" onclick="logout()"
+                    style="color: var(--emergency-red); text-decoration: none; font-size: 0.75rem;">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- SECTION 1: EMERGENCY STATUS -->
+    <div class="status-panel">
+        <span id="statusDot" class="status-indicator" style="background: #94a3b8;"></span>
+        <span id="statusText" style="font-weight: 600; color: #64748b;">No Active Emergency</span>
+    </div>
+
+    <main id="mainContainer">
+        <!-- SECTION 2: RAISE EMERGENCY (INITIAL VIEW) -->
+        <div id="raiseSection">
+            <div class="emergency-btn" onclick="startEmergencyRequest()">
+                <div style="font-size: 3rem; margin-bottom: 10px;">🚨</div>
+                <span>TAP TO REQUEST HELP NOW</span>
+            </div>
+
+            <div class="card form-card">
+                <h3 style="margin-bottom: 1rem;">Select Emergency Type</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.5rem;">
+                    <button class="type-pill selected" onclick="setType(this, 'Medical')">🤒 Medical</button>
+                    <button class="type-pill" onclick="setType(this, 'Accident')">🚗 Accident</button>
+                    <button class="type-pill" onclick="setType(this, 'Cardiac')">❤️ Cardiac</button>
+                    <button class="type-pill" onclick="setType(this, 'Trauma')">🤕 Trauma</button>
+                    <button class="type-pill" onclick="setType(this, 'Other')">❓ Other</button>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Location (Auto-Detecting...)</label>
+                    <input type="text" id="userLoc" class="form-input" placeholder="Detecting your address..." readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Note / Info (Optional)</label>
+                    <textarea id="userNote" class="form-input" style="height: 60px;"
+                        placeholder="Describe what happened..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 3 & 4: LIVE TRACKING & TIMELINE -->
+        <div id="trackingSection" style="display: none;">
+            <div class="tracking-card">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+                    <div>
+                        <h4
+                            style="color: var(--text-secondary); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px;">
+                            Assigned Ambulance</h4>
+                        <h2 id="trackVehicle" style="font-size: 1.5rem;">...</h2>
+                    </div>
+                    <div style="text-align: right;">
+                        <h4
+                            style="color: var(--text-secondary); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1px;">
+                            ETA</h4>
+                        <h2 id="trackEta" style="color: var(--safe-blue);">CALCULATING</h2>
+                    </div>
+                </div>
+
+                <div style="background: #f8fafc; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
+                    <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 4px;">Driver Name</div>
+                    <div id="trackDriver" style="font-weight: 600; margin-bottom: 12px;">...</div>
+                    <a id="callDriver" href="tel:" class="btn-call">📞 CALL DRIVER</a>
+                </div>
+
+                <div style="padding-top: 1rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 0.85rem; color: #64748b;">Hospital Destination</div>
+                        <div id="trackHospital" style="font-weight: 600;">ASSIGNING...</div>
+                    </div>
+                    <button onclick="cancelActiveEmergency()" style="background:var(--emergency-red); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold; cursor:pointer;">✖ CANCEL</button>
+                </div>
+            </div>
+
+            <div class="card timeline-card" style="margin: 1rem;">
+                <h3>Emergency Progress</h3>
+                <div class="timeline" id="emergencyTimeline">
+                    <div class="timeline-item active" id="time-pending">Request Sent</div>
+                    <div class="timeline-item" id="time-assigned">Ambulance Assigned</div>
+                    <div class="timeline-item" id="time-enroute">Ambulance Moving</div>
+                    <div class="timeline-item" id="time-reached">Reached Location</div>
+                    <div class="timeline-item" id="time-hospital">Enroute to Hospital</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: HOSPITAL LISTS SECTION -->
+        <div id="hospitalListSection" class="hosp-list-section">
+            <div class="hosp-col">
+                <h3>🏥 Nearby (< 50km) <span class="rank-badge">High Availability</span></h3>
+                <div id="listNearby">
+                    <p style="color:#94a3b8; text-align:center;">Detecting location...</p>
+                </div>
+            </div>
+            <div class="hosp-col">
+                <h3>🏥 Regional (50-100km) <span class="rank-badge">Backup</span></h3>
+                <div id="listRegional">
+                    <p style="color:#94a3b8; text-align:center;">Detecting location...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5: MAPS AND DIRECTIONS -->
+        <div class="card map-card" id="mapCardContainer" style="display:none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0;">🗺️ Real-Time Map & Routing</h3>
+            </div>
+
+            <div class="search-container">
+                <input type="text" id="mapSearch" class="search-input" placeholder="Search for hospitals or places...">
+                <button class="btn btn-primary" style="padding: 10px 20px;" onclick="searchLocation()">Search</button>
+            </div>
+
+            <div id="map"></div>
+
+            <div id="routingInfo" class="routing-info">
+                <strong>Navigation:</strong> <span id="routeData">Calculating distance...</span>
+                <button onclick="clearRoute()"
+                    style="float: right; font-size: 0.7rem; background: #fee2e2; color: #ef4444; border:none; padding: 2px 8px; border-radius: 4px; cursor:pointer;">Clear
+                    Route</button>
+            </div>
+
+            <!-- Turn-by-Turn Directions Panel -->
+            <div id="directionsPanel"
+                style="margin-top: 10px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #ddd; max-height: 250px; overflow-y: auto; display: none;">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                <button class="btn" style="flex:1; padding: 10px; font-size: 0.85rem;" onclick="centerOnUser()">📍 My
+                    Location</button>
+                <button id="trafficBtn" class="btn"
+                    style="flex:1; padding: 10px; font-size: 0.85rem; background: #94a3b8; color: white;"
+                    onclick="toggleTraffic()">🚗 Show Traffic</button>
+            </div>
+        </div>
+
+        <!-- SECTION 6: HISTORY -->
+        <!-- SECTION 6: HISTORY -->
+        <div id="historySection" style="display:none;">
+            <div class="card" style="margin: 1rem; background: transparent; box-shadow: none;">
+                <h4>Recent Alerts</h4>
+                <div id="historyList"></div>
+            </div>
+
+            <div class="card" style="margin: 1rem; background: transparent; box-shadow: none;">
+                <h4>Call History</h4>
+                <div id="callHistoryList">Loading calls...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchNav('home')">
+            <span class="nav-icon">🏠</span>
+            <span>Home</span>
+        </div>
+        <div class="nav-item" onclick="switchNav('hospitals')">
+            <span class="nav-icon">🏥</span>
+            <span>Hospitals</span>
+        </div>
+        <div class="nav-item" onclick="switchNav('map')">
+            <span class="nav-icon">🗺️</span>
+            <span>Map</span>
+        </div>
+        <div class="nav-item" onclick="switchNav('history')">
+            <span class="nav-icon">📜</span>
+            <span>History</span>
+        </div>
+    </nav>
+
+    <!-- AI CHATBOT -->
+    <div id="aiBotToggle" onclick="toggleChat()">🤖</div>
+    <div id="aiChatPanel">
+        <div class="chat-header">
+            <div>
+                <span style="font-size: 1.25rem;">🤖</span>
+                <span style="font-weight: bold; margin-left: 8px;">Emergency Assistant</span>
+            </div>
+            <button onclick="toggleChat()"
+                style="background:none; border:none; color:white; font-size: 1.5rem; cursor:pointer;">&times;</button>
+        </div>
+        <div class="chat-messages" id="chatMsgs">
+            <div class="msg msg-bot">
+                <strong>Safety First!</strong><br>
+                This assistant provides basic first-aid precautions. It does <b>NOT</b> replace professional medical
+                care.
+            </div>
+        </div>
+        <div style="padding: 10px; display: flex; gap: 5px; flex-wrap: wrap;" id="botShortcuts">
+            <button class="type-pill" onclick="askBot('Bleeding help')">🩸 Bleeding</button>
+            <button class="type-pill" onclick="askBot('CPR steps')">🫀 CPR</button>
+            <button class="type-pill" onclick="askBot('Unconscious help')">💤 Unconscious</button>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" style="flex:1; padding: 10px; border: 1px solid #ddd; border-radius: 8px;"
+                placeholder="Ask anything...">
+            <button onclick="sendChatMessage()" class="btn btn-primary" style="padding: 8px 16px;">Send</button>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        let map, userMarker, hospitalMarkers = [];
+        let ambulanceMarker = null;
+        let googleAmbulanceMarker = null;
+        let trafficLayer = null;
+        let routingControl = null;
+        let geocoder = L.Control.Geocoder.nominatim();
+
+        const botKnowledge = {
+            'Medical': "Stay calm. Loosen tight clothing. If the person is conscious, ask about allergies or medications. Do not give water if they are drowsy.",
+            'Accident': "Do NOT move the person unless there is immediate danger (like fire). Keep their neck straight. Apply firm pressure to any bleeding wounds with a clean cloth.",
+            'Cardiac': "Help them sit in a comfortable position (W-position). Loosen clothing at the neck and waist. Ask if they have heart medicine. If unconscious and not breathing, begin CPR if trained.",
+            'Trauma': "Keep the injured person completely still. If there's a head injury, do not remove any helmets. Watch for vomiting.",
+            'Bleeding help': "Apply direct pressure to the wound with a clean cloth. Keep the limb elevated above heart level. Do not remove the cloth if it soaks through; add more layers on top.",
+            'CPR steps': "1. Push hard and fast in the center of the chest. 2. 100-120 compressions per minute. 3. Allow chest to recoil completely. 4. Continue until help arrives.",
+            'Unconscious help': "Check for breathing. If breathing, place in recovery position (on their side). If not breathing, start CPR. Do not pour water on their face."
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!isLoggedIn()) window.location.href = 'login.html';
+            const user = getUser();
+            document.getElementById('uName').innerText = user.name;
+
+            // loadGoogleMaps(); // Function removed, handled by fetchConfigAndLoadMaps
+            setTimeout(initMap, 1000); // Wait slightly for script payload to load or fall back
+
+            // Get Location
+            // Get Location (Live Tracking)
+            if (navigator.geolocation) {
+                // Use watchPosition for real-time updates
+                navigator.geolocation.watchPosition(pos => {
+                    userLat = pos.coords.latitude;
+                    userLng = pos.coords.longitude;
+                    updateUserMarker(); // This moves the blue dot
+
+                    document.getElementById('userLoc').value = `${userLat.toFixed(4)}, ${userLng.toFixed(4)} (GPS Active)`;
+                }, err => {
+                    console.error("GPS Error", err);
+                    document.getElementById('userLoc').value = "Location Permission Denied";
+                    document.getElementById('userLoc').removeAttribute('readonly');
+                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+            }
+
+            checkActiveEmergency();
+            loadHistory();
+            loadHospitalsOnMap();
+            poolingInterval = setInterval(checkActiveEmergency, 5000);
+
+            // Search entry listener
+            document.getElementById('mapSearch').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') searchLocation();
+            });
+            // Default View: Home
+            // Hide others initially
+            document.getElementById('hospitalListSection').style.display = 'none'; // Default hidden now, user clicks tab
+
+            // Special case: if user asked for initial view, but sticking to "Home" as default seems safest.
+            // If we want "Hospitals" as requested in previous step ("first it shows list"), we can call switchNav('hospitals') 
+            // But usually Dashboard implies Home/Status. Let's stick to Home, or better, the user said "when user go user dash board first it shows the list of hospitals".
+            // So we should default to 'hospitals'.
+            switchNav('hospitals');
+        });
+
+        let googleMap = null;
+        let googleUserMarker = null;
+        let googleHospitalMarkers = [];
+        let directionsService = null;
+        let directionsRenderer = null;
+
+        function initMap() {
+            // Check if Google Maps is loaded
+            if (typeof google !== 'undefined' && google.maps) {
+                initGoogleMap();
+            } else {
+                // Leaflet Fallback
+                map = L.map('map').setView([20.5937, 78.9629], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                // Fix map size when it becomes visible
+                document.getElementById('mapCardContainer').addEventListener('transitionend', function () {
+                    map.invalidateSize();
+                });
+
+                // Traffic (Leaflet)
+                trafficLayer = L.tileLayer('https://{s}.tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=demo', {
+                    attribution: '&copy; Thunderforest'
+                });
+            }
+        }
+
+        function initGoogleMap() {
+            const mapDiv = document.getElementById('map');
+            if (!mapDiv) return;
+
+            // Default Center
+            const center = { lat: 20.5937, lng: 78.9629 };
+
+            googleMap = new google.maps.Map(mapDiv, {
+                center: center,
+                zoom: 12,
+                mapTypeControl: false,
+                streetViewControl: false
+            });
+
+            // Traffic Layer - Enable by default and store reference
+            googleMap.trafficLayer = new google.maps.TrafficLayer();
+            googleMap.trafficLayer.setMap(googleMap);
+
+            // Directions Service
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer();
+            directionsRenderer.setMap(googleMap);
+        }
+
+        function updateUserMarker() {
+            // Re-render lists when location updates
+            renderHospitalLists();
+
+            // Google Maps
+            if (googleMap) {
+                const pos = { lat: userLat, lng: userLng };
+                if (googleUserMarker) {
+                    googleUserMarker.setPosition(pos);
+                } else {
+                    googleUserMarker = new google.maps.Marker({
+                        position: pos,
+                        map: googleMap,
+                        title: "You are here",
+                        icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                    });
+                    googleMap.setCenter(pos);
+                    googleMap.setZoom(15);
+                }
+                return;
+            }
+
+            if (!map) return;
+            if (userMarker) {
+                userMarker.setLatLng([userLat, userLng]);
+            } else {
+                userMarker = L.marker([userLat, userLng], {
+                    icon: L.divIcon({
+                        className: 'user-pin',
+                        html: `<div style="background:var(--safe-blue); width:15px; height:15px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(0,0,0,0.3);"></div>`
+                    })
+                }).addTo(map).bindPopup("You are here").openPopup();
+                map.setView([userLat, userLng], 14);
+            }
+        }
+
+        // --- NEW: HOSPITAL LIST LOGIC ---
+        let allHospitalsData = [];
+
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            var R = 6371; // Radius of the earth in km
+            var dLat = deg2rad(lat2 - lat1);  // deg2rad below
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+                ;
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var d = R * c; // Distance in km
+            return d;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180)
+        }
+
+        function renderHospitalLists() {
+            if (!userLat) {
+                document.getElementById('listNearby').innerHTML = '<p style="text-align:center; padding:20px;">Waiting for your location... <br>Please enable GPS.</p>';
+                document.getElementById('listRegional').innerHTML = '<p style="text-align:center; padding:20px;">Waiting for your location...</p>';
+                return;
+            }
+            if (!allHospitalsData.length) {
+                document.getElementById('listNearby').innerHTML = '<p style="text-align:center; padding:20px;">Loading hospital data...</p>';
+                document.getElementById('listRegional').innerHTML = '<p style="text-align:center; padding:20px;">Loading hospital data...</p>';
+                return;
+            }
+
+            const nearby = [];
+            const regional = [];
+
+            allHospitalsData.forEach(h => {
+                if (h.latitude && h.longitude) {
+                    const dist = getDistanceFromLatLonInKm(userLat, userLng, h.latitude, h.longitude);
+                    h.tempDist = dist; // Store for display
+                    if (dist <= 50) nearby.push(h);
+                    else if (dist > 50 && dist <= 100) regional.push(h);
+                }
+            });
+
+            // Sort by Availability (available_beds) Descending
+            nearby.sort((a, b) => b.available_beds - a.available_beds);
+            regional.sort((a, b) => b.available_beds - a.available_beds);
+
+            const renderItem = (h) => `
+                <div class="hosp-item" onclick="viewOnMap(${h.latitude}, ${h.longitude}, '${h.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">
+                    <div>
+                        <div class="hosp-name">${h.name} <span class="dist-badge">${h.tempDist.toFixed(1)} km</span></div>
+                        <div class="hosp-stats">
+                            ${h.address.substring(0, 30)}...<br>
+                            <span style="color:${h.available_beds > 10 ? '#16a34a' : '#ea580c'}">Beds: ${h.available_beds}</span> | 
+                            Oxygen: ${h.oxygen_status || 'Unknown'}
+                        </div>
+                    </div>
+                    <div>
+                        <button style="background:var(--safe-blue); color:white; border:none; padding:8px 12px; border-radius:20px; cursor:pointer; font-size:0.8rem;">
+                            � GO
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('listNearby').innerHTML = nearby.length ? nearby.map(renderItem).join('') : '<p>No hospitals found within 50km.</p>';
+            document.getElementById('listRegional').innerHTML = regional.length ? regional.map(renderItem).join('') : '<p>No hospitals in 50-100km range.</p>';
+        }
+
+        function switchNav(tab) {
+            // Update Nav UI
+            document.querySelectorAll('.nav-item').forEach(el => {
+                if (el.onclick.toString().includes(`'${tab}'`)) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+
+            // Hide all main sections by default
+            document.getElementById('hospitalListSection').style.display = 'none';
+            document.getElementById('mapCardContainer').style.display = 'none';
+            document.getElementById('historySection').style.display = 'none';
+
+            // Handle Home Tab (Status + Action/Tracking)
+            if (tab === 'home') {
+                document.querySelector('.status-panel').style.display = 'block';
+                // Restore state logic for active emergency
+                if (window.activeEmergency && window.activeEmergency.id) {
+                    document.getElementById('trackingSection').style.display = 'block';
+                    document.getElementById('raiseSection').style.display = 'none';
+                    document.getElementById('mapCardContainer').style.display = 'block';
+                    if (map) setTimeout(() => map.invalidateSize(), 100);
+                } else {
+                    document.getElementById('trackingSection').style.display = 'none';
+                    document.getElementById('raiseSection').style.display = 'block';
+                }
+            } else {
+                // If not home, hide home specific elements
+                document.querySelector('.status-panel').style.display = 'none';
+                document.getElementById('trackingSection').style.display = 'none';
+                document.getElementById('raiseSection').style.display = 'none';
+            }
+
+            // Show specific tab content
+            if (tab === 'hospitals') {
+                document.getElementById('hospitalListSection').style.display = 'flex';
+            }
+            if (tab === 'map') {
+                document.getElementById('mapCardContainer').style.display = 'block';
+                if (map) setTimeout(() => map.invalidateSize(), 100);
+            }
+            if (tab === 'history') {
+                document.getElementById('historySection').style.display = 'block';
+            }
+        }
+
+        function viewOnMap(lat, lng, name) {
+            switchNav('map'); // Switch to map tab
+
+            setTimeout(() => {
+                // Center Map
+                if (map) map.setView([lat, lng], 15);
+                if (googleMap) {
+                    googleMap.setCenter({ lat, lng });
+                    googleMap.setZoom(15);
+                }
+
+                // Auto-Route to destination
+                calculateRoute(lat, lng, name);
+
+                // Find and Open Popup
+                // Leaflet
+                if (map && hospitalMarkers.length > 0) {
+                    // We need to store name in marker to find it, or assume position match
+                    // Let's rely on coordinate proximity (simplest without rewriting marker storage)
+                    const targetMarker = hospitalMarkers.find(m => {
+                        const mLat = m.getLatLng().lat;
+                        const mLng = m.getLatLng().lng;
+                        // epsilon check
+                        return Math.abs(mLat - lat) < 0.0001 && Math.abs(mLng - lng) < 0.0001;
+                    });
+                    if (targetMarker) targetMarker.openPopup();
+                }
+
+                // Google Maps
+                if (googleMap && googleHospitalMarkers.length > 0) {
+                    const targetMarker = googleHospitalMarkers.find(m => {
+                        const pos = m.getPosition();
+                        return Math.abs(pos.lat() - lat) < 0.0001 && Math.abs(pos.lng() - lng) < 0.0001;
+                    });
+                    // To open Google InfoWindow, we need the reference to it.
+                    // In init loop we didn't store infoWindow reference globally or on marker.
+                    // We need to trigger the 'click' event on the marker to open its info window.
+                    if (targetMarker) {
+                        google.maps.event.trigger(targetMarker, 'click');
+                    }
+                }
+
+            }, 400); // Slight delay for tab switch animation/render
+        }
+
+        async function loadHospitalsOnMap() {
+            const hospitals = await apiCall('/hospitals');
+            if (hospitals) {
+                allHospitalsData = hospitals; // Store for list
+                renderHospitalLists(); // Attempt render if loc available
+
+                // Google Maps Loop
+                if (googleMap) {
+                    hospitals.forEach(h => {
+                        if (h.latitude && h.longitude) {
+                            const marker = new google.maps.Marker({
+                                position: { lat: h.latitude, lng: h.longitude },
+                                map: googleMap,
+                                title: h.name,
+                                icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                                label: {
+                                    text: h.name,
+                                    color: 'black',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    className: 'map-label' // This helps in styling if supported or just native
+                                }
+                            });
+
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: `
+                                    <div style="min-width:180px; padding:5px;">
+                                        <b>${h.name}</b><br>
+                                        <span style="color:green;">Available Beds: ${h.available_beds}</span><br>
+                                        <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
+                                        <button onclick="calculateRoute(${h.latitude}, ${h.longitude}, '${h.name.replace(/'/g, "\\'")}')" style="width:100%; padding:6px; background:var(--safe-blue); color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📍 Route</button>
+                                    </div>
+                                `
+                            });
+
+                            marker.addListener("click", () => {
+                                infoWindow.open(googleMap, marker);
+                                calculateRoute(h.latitude, h.longitude, h.name); // Auto-Route on click
+                            });
+                            googleHospitalMarkers.push(marker);
+                        }
+                    });
+                    return;
+                }
+
+                hospitals.forEach(h => {
+                    if (h.latitude && h.longitude) {
+                        const marker = L.marker([h.latitude, h.longitude], {
+                            icon: L.divIcon({
+                                className: 'hosp-pin',
+                                html: '<span style="font-size:1.5rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🏥</span>'
+                            })
+                        }).addTo(map)
+                            .bindTooltip(h.name, {
+                                permanent: true,
+                                direction: 'top',
+                                offset: [0, -28],
+                                className: 'hosp-tooltip'
+                            })
+                            .bindPopup(`
+                                <div style="min-width:180px;">
+                                    <b>${h.name}</b><br>
+                                    <span style="color:green;">Available Beds: ${h.available_beds}</span><br>
+                                    <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
+                                    <button onclick="calculateRoute(${h.latitude}, ${h.longitude}, '${h.name.replace(/'/g, "\\'")}')" style="width:100%; padding:6px; background:var(--safe-blue); color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📍 Real-Time Route</button>
+                                    <button onclick="getDirections(${h.latitude}, ${h.longitude})" style="width:100%; margin-top:5px; padding:4px; background:white; color:var(--safe-blue); border:1px solid var(--safe-blue); border-radius:4px; cursor:pointer; font-size:0.7rem;">Open in Google Maps</button>
+                                </div>
+                            `);
+                        hospitalMarkers.push(marker);
+                    }
+                });
+            }
+        }
+
+        function calculateRoute(destLat, destLng, destName) {
+            if (!userLat) { alert("Detecting your location..."); return; }
+
+            // Google Maps Routing
+            if (googleMap && directionsService) {
+                const request = {
+                    origin: { lat: userLat, lng: userLng },
+                    destination: { lat: destLat, lng: destLng },
+                    travelMode: google.maps.TravelMode.DRIVING
+                };
+                directionsService.route(request, (result, status) => {
+                    if (status === 'OK') {
+                        // Display Map Route
+                        directionsRenderer.setDirections(result);
+
+                        // Display Steps below map
+                        const panel = document.getElementById('directionsPanel');
+                        panel.innerHTML = '<h4 style="margin-top:0; color:var(--safe-blue);">Turn-by-Turn Directions</h4>'; // clear previous
+                        panel.style.display = 'block';
+                        // directionsRenderer.setPanel(panel); // Removed default
+
+                        // Custom Render
+                        const steps = result.routes[0].legs[0].steps;
+                        steps.forEach((step, index) => {
+                            const cleanInstr = step.instructions; // Google provides HTML here usually
+                            const dist = step.distance.text;
+                            const dur = step.duration.text;
+
+                            panel.innerHTML += `
+                                <div class="step-item">
+                                    <div style="font-weight:bold; color:#94a3b8; min-width:25px;">${index + 1}.</div>
+                                    <div style="flex:1;">
+                                        <div style="line-height:1.4;">${cleanInstr}</div>
+                                        <span class="step-dist">${dist} • ${dur}</span>
+                                    </div>
+                                </div>
+                             `;
+                        });
+
+                        // Routing Info Header
+                        document.getElementById('routingInfo').style.display = 'block';
+                        const leg = result.routes[0].legs[0];
+                        document.getElementById('routeData').innerText = `To ${destName}: ${leg.distance.text} (${leg.duration.text})`;
+                    } else {
+                        alert("Directions request failed due to " + status);
+                    }
+                });
+                return;
+            }
+
+            // Clear existing route
+            if (routingControl) map.removeControl(routingControl);
+
+            routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(userLat, userLng),
+                    L.latLng(destLat, destLng)
+                ],
+                routeWhileDragging: false,
+                lineOptions: {
+                    styles: [{ color: '#3b82f6', weight: 6, opacity: 0.8 }]
+                },
+                createMarker: function () { return null; } // Hide default icons as we have our own
+            }).on('routesfound', function (e) {
+                const routes = e.routes;
+                const summary = routes[0].summary;
+                document.getElementById('routingInfo').style.display = 'block';
+                document.getElementById('routeData').innerText = `To ${destName}: ${(summary.totalDistance / 1000).toFixed(1)} km (${Math.round(summary.totalTime / 60)} mins)`;
+            }).addTo(map);
+
+            // map.closePopup(); // Keep popup open so user knows what they routed to
+        }
+
+        function clearRoute() {
+            if (directionsRenderer) {
+                directionsRenderer.setDirections({ routes: [] });
+                directionsRenderer.setPanel(null); // Clear panel link
+            }
+            document.getElementById('directionsPanel').style.display = 'none';
+
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+                document.getElementById('routingInfo').style.display = 'none';
+            }
+        }
+
+        function searchLocation() {
+            const query = document.getElementById('mapSearch').value.toLowerCase();
+            if (!query) return;
+
+            // 1. Search Local Hospital Database First
+            const localMatch = allHospitalsData.find(h => h.name.toLowerCase().includes(query));
+            if (localMatch && localMatch.latitude && localMatch.longitude) {
+                viewOnMap(localMatch.latitude, localMatch.longitude, localMatch.name);
+                return;
+            }
+
+            // 2. Fallback to Google/Leaflet Geocoding
+            if (googleMap) {
+                const request = {
+                    query: query,
+                    fields: ['name', 'geometry'],
+                };
+                const service = new google.maps.places.PlacesService(googleMap);
+                service.findPlaceFromQuery(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                        const place = results[0];
+                        googleMap.setCenter(place.geometry.location);
+                        googleMap.setZoom(14);
+                        new google.maps.Marker({
+                            position: place.geometry.location,
+                            map: googleMap,
+                            title: place.name
+                        });
+                        // Auto-Route
+                        calculateRoute(place.geometry.location.lat(), place.geometry.location.lng(), place.name);
+                    } else {
+                        alert("Location not found.");
+                    }
+                });
+                return;
+            }
+
+            geocoder.geocode(query, function (results) {
+                if (results.length > 0) {
+                    const r = results[0];
+                    map.setView(r.center, 15);
+                    const m = L.marker(r.center).addTo(map).bindPopup(r.name).openPopup();
+                    // Auto-Route
+                    calculateRoute(r.center.lat, r.center.lng, r.name);
+                } else {
+                    alert("Location not found.");
+                }
+            });
+        }
+
+
+        function centerOnUser() {
+            if (userLat && userLng) {
+                if (googleMap) {
+                    googleMap.setCenter({ lat: userLat, lng: userLng });
+                    googleMap.setZoom(15);
+                } else {
+                    map.setView([userLat, userLng], 15);
+                }
+            }
+        }
+
+        function toggleTraffic() {
+            const btn = document.getElementById('trafficBtn');
+
+            // Google Maps Traffic
+            if (googleMap && googleMap.trafficLayer) {
+                if (googleMap.trafficLayer.getMap()) {
+                    googleMap.trafficLayer.setMap(null);
+                    btn.style.background = "#94a3b8";
+                    btn.innerText = "🚗 Show Traffic";
+                } else {
+                    googleMap.trafficLayer.setMap(googleMap);
+                    btn.style.background = "#22c55e";
+                    btn.innerText = "✅ Traffic On";
+                }
+                return;
+            }
+
+            // Leaflet Traffic
+            if (map.hasLayer(trafficLayer)) {
+                map.removeLayer(trafficLayer);
+                btn.style.background = "#94a3b8";
+                btn.innerText = "🚗 Show Traffic";
+            } else {
+                trafficLayer.addTo(map);
+                btn.style.background = "#22c55e";
+                btn.innerText = "✅ Traffic On";
+            }
+        }
+
+        function getDirections(lat, lng) {
+            if (!userLat) { alert("Detecting your location..."); return; }
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${lat},${lng}&travelmode=driving`;
+            window.open(url, '_blank');
+        }
+
+        function setType(btn, type) {
+            document.querySelectorAll('.type-pill').forEach(p => p.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedType = type;
+        }
+
+        let currentAnalysis = null;
+
+        async function startEmergencyRequest() {
+            // Updated Flow:
+            // 1. If Medical, show Symptoms Input first
+            // 2. If Accident/Cardiac/Trauma, standard flow but maybe with improved info
+
+            if (selectedType === 'Medical') {
+                // Show Symptoms Modal or UI
+                const symptom = prompt("Please describe your symptoms for AI Analysis (e.g. chest pain, dizziness):");
+                if (symptom) {
+                    await analyzeAndRequest(symptom);
+                }
+                return;
+            }
+
+            // Standard Flow for non-medical or if user wants direct dispatch
+            if (!userLat && !document.getElementById('userLoc').value) {
+                alert("Please enable location or enter address.");
+                return;
+            }
+
+            const data = {
+                emergency_type: selectedType,
+                location_address: document.getElementById('userLoc').value,
+                location_lat: userLat,
+                location_lng: userLng,
+                severity: 'High',
+                patient_name: getUser().name,
+                contact_number: getUser().phone
+            };
+
+            const res = await apiCall('/emergencies/', 'POST', data);
+            if (res && !res.error) {
+                checkActiveEmergency();
+                setTimeout(() => {
+                    toggleChat(true);
+                    botReply("Help is on the way! Here are some precautions for a " + selectedType + " emergency: " + (botKnowledge[selectedType] || "Stay calm and wait for help."));
+                }, 1000);
+            } else {
+                alert(res.message || "Request failed");
+            }
+        }
+
+        async function analyzeAndRequest(symptoms) {
+            // 1. Analyze
+            toggleChat(true);
+            botReply("Analyzing your symptoms with AI... please wait.");
+
+            const payload = {
+                symptoms: symptoms,
+                latitude: userLat,
+                longitude: userLng
+            };
+
+            const data = await apiCall('/ai/analyze', 'POST', payload);
+
+            if (data && !data.error) {
+                const analysis = data.analysis;
+                const hospital = data.nearest_hospital;
+                const ambulance = data.nearest_ambulance;
+
+                let msg = `<b>Analysis Result: <span class="badge badge-${analysis.urgency}">${analysis.urgency}</span></b><br>`;
+                msg += `Advice: ${analysis.advice}<br>`;
+                msg += `Speciality: ${analysis.speciality}<br>`;
+                
+                if (hospital) {
+                    msg += `<br><b>🏥 Nearest Hospital:</b> ${hospital.name} (${data.distance_km} km)<br>`;
+                }
+
+                if (ambulance) {
+                    msg += `<br><b>🚑 Nearest Ambulance:</b> ${ambulance.vehicle_number} (${data.ambulance_distance_km} km)<br>`;
+                    msg += `Driver: ${ambulance.driver_name}<br>`;
+                    msg += `<button onclick="dispatchSpecificAmbulance(${hospital ? hospital.id : 'null'}, ${ambulance.id}, '${analysis.speciality}', '${analysis.urgency}', '${ambulance.driver_phone}');" style="margin-top:10px; padding:6px 12px; background:var(--safe-blue); color:white; border:none; border-radius:4px; cursor:pointer; width:100%; font-weight:bold;">🚀 Connect & Dispatch Ambulance</button>`;
+                } else if (analysis.ambulance_needed) {
+                    msg += `<br><b>🚑 Ambulance Recommended!</b> Dispatching nearest available...`;
+                }
+
+                botReply(msg);
+
+                // Auto-dispatch if high urgency or confirmed AND we didn't show the dispatch button just now.
+                // Wait, if we showed the button, we want them to click it to connect the ambulance driver.
+                if (!ambulance && (analysis.ambulance_needed || confirm("AI suggests an ambulance. Dispatch now?"))) {
+                    const emData = {
+                        emergency_type: analysis.speciality, // Use AI determined type
+                        location_address: `Lat: ${userLat}, Lng: ${userLng}`,
+                        location_lat: userLat,
+                        location_lng: userLng,
+                        severity: analysis.urgency,
+                        patient_name: getUser().name,
+                        contact_number: getUser().phone
+                    };
+                    const res = await apiCall('/emergencies/', 'POST', emData);
+                    if (res && !res.error) {
+                        checkActiveEmergency();
+                        botReply("✅ Ambulance Dispatched! Destination: " + (hospital ? hospital.name : "Nearest Center"));
+                    }
+                }
+            } else {
+                botReply("AI Analysis failed. Dispatching standard ambulance.");
+                // Fallback dispatch
+                // startEmergencyRequest (recursive but with generic type? or just call API)
+            }
+        }
+        
+        async function dispatchSpecificAmbulance(hospitalId, ambulanceId, type, urgency, docPhone) {
+            const emData = {
+                emergency_type: type,
+                location_address: `Lat: ${userLat}, Lng: ${userLng}`,
+                location_lat: userLat,
+                location_lng: userLng,
+                severity: urgency,
+                patient_name: getUser().name,
+                contact_number: getUser().phone,
+                assigned_ambulance_id: ambulanceId,
+                assigned_hospital_id: hospitalId
+            };
+            const res = await apiCall('/emergencies/', 'POST', emData);
+            if (res && res.id) {
+                botReply("✅ Ambulance Dispatched! Live tracking started.");
+                checkActiveEmergency();
+                
+                // Dashboard now has the map embedded; switch to home!
+                switchNav('home');
+                
+                // Connect user to ambulance driver
+                if (docPhone && docPhone !== 'undefined') {
+                    window.location.href = `tel:${docPhone}`;
+                } else {
+                    alert("Ambulance dispatched! Tracking map is now active.");
+                }
+            } else {
+                botReply("Failed to dispatch ambulance.");
+            }
+        }
+
+        async function cancelActiveEmergency() {
+            if (!window.activeEmergency || !window.activeEmergency.id) return;
+            if (!confirm("Are you sure you want to cancel this emergency request?")) return;
+            
+            const res = await apiCall(`/emergencies/${window.activeEmergency.id}/cancel`, 'PUT');
+            if (res && !res.error) {
+                botReply("🚫 Emergency cancelled successfully.");
+                
+                // Clear map marker
+                if (ambulanceMarker && map) {
+                    map.removeLayer(ambulanceMarker);
+                    ambulanceMarker = null;
+                }
+                if (googleAmbulanceMarker) {
+                    googleAmbulanceMarker.setMap(null);
+                    googleAmbulanceMarker = null;
+                }
+                
+                checkActiveEmergency();
+                switchNav('home');
+            } else {
+                alert(res.message || "Failed to cancel emergency.");
+            }
+        }
+
+        async function checkActiveEmergency() {
+            const emergency = await apiCall('/emergencies/active');
+            if (emergency && emergency.id) {
+                window.activeEmergency = emergency; // Store globally
+
+                document.getElementById('statusDot').style.background = '#ef4444';
+                document.getElementById('statusText').innerText = "Emergency Active: " + (emergency.status || "Pending");
+                document.getElementById('statusText').style.color = '#ef4444';
+
+                // Update Tracking UI
+                document.getElementById('trackVehicle').innerText = emergency.vehicle_number || "ASSIGNING AMBULANCE...";
+                document.getElementById('trackEta').innerText = emergency.status === 'Assigned' ? "10-15 MINS" : "WAITING";
+                document.getElementById('trackDriver').innerText = emergency.driver_name || "Assigning...";
+                document.getElementById('callDriver').href = "tel:" + (emergency.driver_phone || "");
+                document.getElementById('trackHospital').innerText = emergency.hospital_name || "TO BE DECIDED";
+
+                // Timeline logic
+                document.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('active'));
+                document.getElementById('time-pending').classList.add('active');
+                if (emergency.status === 'Assigned') {
+                    document.getElementById('time-assigned').classList.add('active');
+                    document.getElementById('time-enroute').classList.add('active');
+                    
+                    // Live Tracking on map
+                    if (emergency.ambulance_lat && emergency.ambulance_lng) {
+                        const ambLat = parseFloat(emergency.ambulance_lat);
+                        const ambLng = parseFloat(emergency.ambulance_lng);
+                        
+                        if (googleMap) {
+                            if (googleAmbulanceMarker) {
+                                googleAmbulanceMarker.setPosition({ lat: ambLat, lng: ambLng });
+                            } else {
+                                googleAmbulanceMarker = new google.maps.Marker({
+                                    position: { lat: ambLat, lng: ambLng },
+                                    map: googleMap,
+                                    title: 'Ambulance',
+                                    icon: 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png'
+                                });
+                            }
+                            if (userLat && userLng) {
+                                const bounds = new google.maps.LatLngBounds();
+                                bounds.extend({lat: userLat, lng: userLng});
+                                bounds.extend({lat: ambLat, lng: ambLng});
+                                googleMap.fitBounds(bounds);
+                            }
+                        } else if (map) {
+                            if (ambulanceMarker) {
+                                ambulanceMarker.setLatLng([ambLat, ambLng]);
+                            } else {
+                                ambulanceMarker = L.marker([ambLat, ambLng], {
+                                    icon: L.divIcon({
+                                        className: 'amb-pin',
+                                        html: '<span style="font-size:1.5rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🚑</span>'
+                                    })
+                                }).addTo(map).bindPopup("Ambulance Incoming").openPopup();
+                            }
+                            if (userLat && userLng) {
+                                map.fitBounds([[userLat, userLng], [ambLat, ambLng]], {padding: [50, 50]});
+                            }
+                        }
+                    }
+                }
+
+                if (document.querySelector('.status-panel').style.display !== 'none') {
+                    document.getElementById('raiseSection').style.display = 'none';
+                    document.getElementById('trackingSection').style.display = 'block';
+                    document.getElementById('mapCardContainer').style.display = 'block';
+                    if (map) setTimeout(() => map.invalidateSize(), 100);
+                }
+
+            } else {
+                window.activeEmergency = null;
+                document.getElementById('statusDot').style.background = '#94a3b8';
+                document.getElementById('statusText').innerText = "No Active Emergency";
+                document.getElementById('statusText').style.color = '#64748b';
+
+                if (document.querySelector('.status-panel').style.display !== 'none') {
+                    document.getElementById('raiseSection').style.display = 'block';
+                    document.getElementById('trackingSection').style.display = 'none';
+                    document.getElementById('mapCardContainer').style.display = 'none';
+                }
+            }
+        }
+
+
+        async function loadHistory() {
+            // Load Emergency History
+            const history = await apiCall('/emergencies/history');
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+
+            if (history && history.length > 0) {
+                // ... (Existing implementation presumably creates rows, but we don't see it here.
+                // Assuming "loadHistory" was NOT fully defined before or just empty.
+                // Wait, I am inside a script block. I should just define the new function and append calling it.)
+                history.forEach(em => {
+                    const date = new Date(em.created_at).toLocaleDateString();
+                    const item = document.createElement('div');
+                    item.className = 'card';
+                    item.style.marginBottom = '10px';
+                    item.innerHTML = `
+                        <div style="font-weight: 600;">${em.emergency_type} - ${date}</div>
+                        <div style="font-size: 0.85rem; color: #64748b;">${em.location_address || 'Unknown Loc'}</div>
+                        <div style="margin-top: 5px;">
+                            <span class="rank-badge">${em.status}</span>
+                        </div>
+                    `;
+                    historyList.appendChild(item);
+                });
+            } else {
+                historyList.innerHTML = '<p style="text-align:center; color: #94a3b8;">No past emergencies.</p>';
+            }
+
+            // Load Call History
+            const callList = document.getElementById('callHistoryList');
+            callList.innerHTML = 'Loading...';
+            try {
+                // Reuse the same /call/history endpoint but filter by user? 
+                // Currently /call/history in backend returns ALL for admin.
+                // I need a user-specific endpoint or just call it and filter if I were lazy, but secure way is endpoint.
+                // For now, let's assume I need to add /call/my-history or similar.
+                // Actually, the previous step added /call/history (admin). 
+                // Let's modify backend to allow user to see their own calls.
+                // I will add a new endpoint /call/me in the next step. 
+                // For now, I will write the frontend consumption logic assuming it exists.
+                const calls = await apiCall('/call/me');
+                callList.innerHTML = '';
+
+                if (calls && calls.length > 0) {
+                    calls.forEach(c => {
+                        const date = new Date(c.start_time).toLocaleString();
+                        const duration = c.duration ? `${c.duration}s` : 'Missed/Short';
+                        let player = '';
+                        if (c.recording_url) {
+                            player = `<div style="margin-top:5px;"><audio controls src="${c.recording_url}" style="width:100%; height: 30px;"></audio></div>`;
+                        } else {
+                            player = `<div style="font-size:0.8rem; color:#aaa;">No Recording</div>`;
+                        }
+
+                        const el = document.createElement('div');
+                        el.className = 'card';
+                        el.style.marginBottom = '10px';
+                        el.style.borderLeft = '4px solid var(--accent)';
+                        el.innerHTML = `
+                            <div style="display:flex; justify-content:space-between;">
+                                <strong>Outgoing Call</strong>
+                                <small>${date}</small>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size: 0.9rem;">
+                                <span>Duration: ${duration}</span>
+                                <span class="badge ${c.status === 'completed' ? 'badge-Low' : 'badge-High'}">${c.status}</span>
+                            </div>
+                            ${player}
+                        `;
+                        callList.appendChild(el);
+                    });
+                } else {
+                    callList.innerHTML = '<p style="text-align:center; color: #94a3b8;">No call history.</p>';
+                }
+            } catch (e) {
+                console.error(e);
+                callList.innerHTML = '<p style="color:red;">Failed to load calls.</p>';
+            }
+        }
+
+
+
+        /* BOT LOGIC */
+        function toggleChat(forceOpen = false) {
+            const panel = document.getElementById('aiChatPanel');
+            if (forceOpen) panel.style.display = 'flex';
+            else panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        async function askBot(query) {
+            userTalk(query);
+            const msgId = 'bot-msg-' + Date.now();
+            const wrap = document.getElementById('chatMsgs');
+            wrap.innerHTML += `<div id="${msgId}" class="msg msg-bot">... Thinking ...</div>`;
+            wrap.scrollTop = wrap.scrollHeight;
+
+            const res = await apiCall('/ai/chat', 'POST', {message: query});
+            
+            const msgEl = document.getElementById(msgId);
+            if (msgEl) {
+                if (res && res.reply) {
+                    msgEl.innerHTML = res.reply;
+                } else {
+                    msgEl.innerHTML = "Sorry, I am having trouble connecting to my AI brain. Please stay calm and wait for help.";
+                }
+                wrap.scrollTop = wrap.scrollHeight;
+            }
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const txt = input.value.trim();
+            if (!txt) return;
+            input.value = '';
+            askBot(txt);
+        }
+
+        function userTalk(msg) {
+            const wrap = document.getElementById('chatMsgs');
+            wrap.innerHTML += `<div class="msg msg-user">${msg}</div>`;
+            wrap.scrollTop = wrap.scrollHeight;
+        }
+
+        function botReply(msg) {
+            const wrap = document.getElementById('chatMsgs');
+            wrap.innerHTML += `<div class="msg msg-bot">${msg}</div>`;
+            wrap.scrollTop = wrap.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>My Hospital | Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .status-pill {
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .status-inactive {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .medicine-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: #fff;
+        }
+
+        .medicine-table th,
+        .medicine-table td {
+            text-align: left;
+            padding: 0.75rem;
+            border: 1px solid #edf2f7;
+        }
+
+        .medicine-table th {
+            background: #f8fafc;
+        }
+    </style>
+</head>
+
+<body style="background: #f1f5f9;">
+    <div class="dashboard-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                <span style="font-size: 2rem;">🏥</span> Partner Portal
+            </div>
+            <nav>
+                <div class="nav-link active">📊 Live Status</div>
+                <div class="nav-link" onclick="logout()"
+                    style="cursor: pointer; color: var(--emergency-red); margin-top: 2rem;">🚪 Logout</div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 id="hName">Loading...</h1>
+                    <p id="hDetails" style="color: var(--text-secondary);"></p>
+                </div>
+                <div id="hStatusPill"></div>
+            </header>
+
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+                <div class="left-col">
+                    <!-- Capacity Management -->
+                    <div class="card" style="margin-bottom: 2rem;">
+                        <h3 style="margin-bottom: 1.5rem;">🛌 Live Capacity Management</h3>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Available Regular Beds</label>
+                                <input type="number" id="uAvailBeds" class="form-input"
+                                    style="font-size: 1.5rem; font-weight: bold; color: var(--primary-blue);">
+                                <small>Total Capacity: <span id="uTotalBeds">0</span></small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Available ICU Beds</label>
+                                <input type="number" id="uAvailICU" class="form-input"
+                                    style="font-size: 1.5rem; font-weight: bold; color: var(--emergency-red);">
+                                <small>Total Capacity: <span id="uTotalICU">0</span></small>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Ventilators Available</label>
+                                <input type="number" id="uVentilators" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Oxygen Supply Status</label>
+                                <select id="uOxygen" class="form-input">
+                                    <option value="Available">Available</option>
+                                    <option value="Limited">Limited</option>
+                                    <option value="Not Available">Not Available</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Readiness Management -->
+                    <div class="card">
+                        <h3 style="margin-bottom: 1rem;">💊 Medicine & Supply Readiness</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary);">Update availability of life-saving
+                            accident trauma supplies.</p>
+                        <table class="medicine-table">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="medStatusBody">
+                                <tr data-cat="pain_mgt">
+                                    <td>Pain Management</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                                <tr data-cat="bleeding_ctrl">
+                                    <td>Bleeding Control</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                                <tr data-cat="iv_fluids">
+                                    <td>IV Fluids</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                                <tr data-cat="antibiotics">
+                                    <td>Emergency Antibiotics</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                                <tr data-cat="airway_support">
+                                    <td>Airway Support</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                                <tr data-cat="head_injury">
+                                    <td>Head Injury Care</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                                <tr data-cat="fracture_care">
+                                    <td>Fracture Care</td>
+                                    <td><select class="form-input status-sel"></select></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="right-col">
+                    <div class="card" style="margin-bottom: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">⚙️ Operations</h3>
+                        <div class="form-group">
+                            <label class="form-label">Hospital Operating Status</label>
+                            <select id="uStatus" class="form-input">
+                                <option value="Active">Active (Receiving Cases)</option>
+                                <option value="Temporarily Full">Temporarily Full</option>
+                                <option value="Inactive">Inactive (Emergency Closed)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Emergency Doctors on Duty</label>
+                            <input type="number" id="uDocs" class="form-input">
+                        </div>
+                        <button class="btn btn-primary" onclick="saveStatus()"
+                            style="width: 100%; padding: 1rem; border-radius: 8px;">UPDATE LIVE STATUS</button>
+                    </div>
+
+                    <div class="card">
+                        <h3 style="margin-bottom: 1rem;">📝 Quick Notes</h3>
+                        <textarea id="uNotes" class="form-input" style="height: 100px;"
+                            placeholder="Internal staff notes..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        let myHospId = null;
+        const statusOptions = ['Available', 'Limited', 'Not Available'];
+
+        async function init() {
+            if (!isLoggedIn()) window.location.href = 'login.html';
+
+            // Populate select options
+            document.querySelectorAll('.status-sel').forEach(sel => {
+                statusOptions.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.innerText = opt;
+                    sel.appendChild(o);
+                });
+            });
+
+            const hosp = await apiCall('/hospitals/my-hospital');
+            if (hosp) {
+                myHospId = hosp.id;
+                document.getElementById('hName').innerText = hosp.name;
+                document.getElementById('hDetails').innerText = `${hosp.reg_number || 'No Reg'} | ${hosp.address}`;
+
+                // Set Status Pill
+                const pill = document.getElementById('hStatusPill');
+                pill.className = `status-pill ${hosp.status === 'Active' ? 'status-active' : 'status-inactive'}`;
+                pill.innerText = hosp.status;
+
+                // Capacity
+                document.getElementById('uAvailBeds').value = hosp.available_beds;
+                document.getElementById('uTotalBeds').innerText = hosp.total_beds;
+                document.getElementById('uAvailICU').value = hosp.available_icu_beds;
+                document.getElementById('uTotalICU').innerText = hosp.icu_beds;
+                document.getElementById('uVentilators').value = hosp.ventilators_count || 0;
+                document.getElementById('uOxygen').value = hosp.oxygen_status || 'Available';
+                document.getElementById('uDocs').value = hosp.doctors_on_duty || 0;
+                document.getElementById('uStatus').value = hosp.status;
+                document.getElementById('uNotes').value = hosp.doctor_details || '';
+
+                // Medicine Readiness
+                if (hosp.medicine_readiness) {
+                    const medData = typeof hosp.medicine_readiness === 'string' ? JSON.parse(hosp.medicine_readiness) : hosp.medicine_readiness;
+                    Object.entries(medData).forEach(([cat, status]) => {
+                        const tr = document.querySelector(`tr[data-cat="${cat}"]`);
+                        if (tr) tr.querySelector('select').value = status;
+                    });
+                }
+            }
+        }
+
+        async function saveStatus() {
+            const medReadiness = {};
+            document.querySelectorAll('#medStatusBody tr').forEach(row => {
+                medReadiness[row.getAttribute('data-cat')] = row.querySelector('select').value;
+            });
+
+            const data = {
+                available_beds: document.getElementById('uAvailBeds').value,
+                available_icu_beds: document.getElementById('uAvailICU').value,
+                ventilators_count: document.getElementById('uVentilators').value,
+                oxygen_status: document.getElementById('uOxygen').value,
+                doctors_on_duty: document.getElementById('uDocs').value,
+                status: document.getElementById('uStatus').value,
+                doctor_details: document.getElementById('uNotes').value,
+                medicine_readiness: medReadiness
+            };
+
+            const res = await apiCall(`/hospitals/${myHospId}`, 'PUT', data);
+            if (res && !res.error) {
+                alert('Live status updated for dispatch center.');
+                location.reload();
+            } else {
+                alert('Update failed');
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

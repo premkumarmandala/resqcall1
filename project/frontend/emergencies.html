@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ResQ Admin | Emergencies</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h1>Emergency Management</h1>
+                <button class="btn btn-danger" onclick="openReportModal()">+ Report Emergency</button>
+            </header>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Patient / Context</th>
+                                <th>Severity</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Assigned To</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="emgTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Assignment Modal -->
+    <div class="modal" id="assignModal">
+        <div class="modal-content">
+            <h3>Assign Resources</h3>
+            <p id="modalEmgIdDisplay" style="margin-bottom: 1rem; color: var(--text-secondary);"></p>
+            <input type="hidden" id="targetEmgId">
+
+            <div class="form-group">
+                <label class="form-label">Select Ambulance</label>
+                <select id="assignAmbulance" class="form-input">
+                    <option value="">-- Choose Ambulance --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Select Hospital</label>
+                <select id="assignHospital" class="form-input">
+                    <option value="">-- Choose Hospital --</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn btn-primary" onclick="submitAssignment()">Assign</button>
+                <button class="btn" style="background: var(--bg-color);"
+                    onclick="closeModal('assignModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal" id="reportModal">
+        <div class="modal-content">
+            <h3>Report New Emergency</h3>
+            <div class="form-group">
+                <label>Patient Name</label>
+                <input type="text" id="newPatient" class="form-input">
+            </div>
+            <div class="form-group">
+                <label>Contact</label>
+                <input type="text" id="newContact" class="form-input">
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" id="newLocation" class="form-input">
+            </div>
+            <div class="form-group">
+                <label>Severity</label>
+                <select id="newSeverity" class="form-input">
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn btn-danger" onclick="submitReport()">Report Incident</button>
+                <button class="btn" onclick="closeModal('reportModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            checkAuthRedirect();
+            setupSidebar();
+            loadEmergencies();
+        });
+
+        async function loadEmergencies() {
+            const emgs = await apiCall('/emergencies');
+            const tbody = document.getElementById('emgTable');
+            tbody.innerHTML = '';
+
+            emgs.forEach(emg => {
+                let actions = '';
+                if (emg.status === 'Pending') {
+                    actions = `<button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="openAssignModal(${emg.id})">Assign</button>`;
+                } else if (emg.status === 'Assigned') {
+                    actions = `<button class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background-color: var(--success-green); color: white;" onclick="resolveEmg(${emg.id})">Resolve</button>`;
+                } else {
+                    actions = '<span style="color: var(--text-secondary);">Closed</span>';
+                }
+
+                const row = `
+                    <tr>
+                        <td>#${emg.id}</td>
+                        <td>
+                            <div style="font-weight: 500;">${emg.patient_name}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">${emg.contact_number || ''}</div>
+                        </td>
+                        <td><span style="font-weight: bold; color: ${emg.severity === 'Critical' ? 'red' : 'inherit'}">${emg.severity}</span></td>
+                        <td>${emg.location_address}</td>
+                        <td>${emg.status}</td>
+                        <td>
+                            ${emg.vehicle_number ? '🚑 ' + emg.vehicle_number : '-'} <br>
+                            ${emg.hospital_name ? '🏥 ' + emg.hospital_name : '-'}
+                        </td>
+                        <td>${actions}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        async function openAssignModal(id) {
+            document.getElementById('targetEmgId').value = id;
+            document.getElementById('modalEmgIdDisplay').innerText = `Assigning for Emergency #${id}`;
+            document.getElementById('assignModal').classList.add('active');
+
+            // Load available resources
+            const ambulances = await apiCall('/ambulances');
+            const hospitals = await apiCall('/hospitals');
+
+            const ambSelect = document.getElementById('assignAmbulance');
+            ambSelect.innerHTML = '<option value="">-- Choose Ambulance --</option>';
+            ambulances.forEach(a => {
+                if (a.status === 'Available') {
+                    ambSelect.innerHTML += `<option value="${a.id}">${a.vehicle_number}</option>`;
+                }
+            });
+
+            const hospSelect = document.getElementById('assignHospital');
+            hospSelect.innerHTML = '<option value="">-- Choose Hospital --</option>';
+            hospitals.forEach(h => {
+                if (h.is_active) {
+                    hospSelect.innerHTML += `<option value="${h.id}">${h.name} (${h.icu_beds} ICU beds)</option>`;
+                }
+            });
+        }
+
+        function openReportModal() { document.getElementById('reportModal').classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        async function submitAssignment() {
+            const id = document.getElementById('targetEmgId').value;
+            const ambId = document.getElementById('assignAmbulance').value;
+            const hospId = document.getElementById('assignHospital').value;
+
+            if (!ambId || !hospId) { alert('Please select both resources'); return; }
+
+            await apiCall(`/emergencies/${id}/assign`, 'PUT', { ambulance_id: ambId, hospital_id: hospId });
+            closeModal('assignModal');
+            loadEmergencies();
+        }
+
+        async function submitReport() {
+            const data = {
+                patient_name: document.getElementById('newPatient').value,
+                contact_number: document.getElementById('newContact').value,
+                location_address: document.getElementById('newLocation').value,
+                severity: document.getElementById('newSeverity').value
+            };
+            await apiCall('/emergencies', 'POST', data);
+            closeModal('reportModal');
+            loadEmergencies();
+        }
+
+        async function resolveEmg(id) {
+            if (confirm('Mark this emergency as resolved? Resource will be freed.')) {
+                await apiCall(`/emergencies/${id}/resolve`, 'PUT', {});
+                loadEmergencies();
+            }
+        }
+    </script>
+</body>
+
+</html>

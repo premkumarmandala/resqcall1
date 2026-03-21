@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ResQ Admin | Ambulances</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h1>Fleet Management</h1>
+                <button class="btn btn-primary" onclick="openAmbModal()">+ Register Ambulance</button>
+            </header>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Vehicle Number</th>
+                                <th>Assigned Driver</th>
+                                <th>Current Status</th>
+                                <th>Location</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ambTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Ambulance Modal -->
+    <div class="modal" id="ambModal">
+        <div class="modal-content">
+            <h3>Register Ambulance</h3>
+
+            <div class="form-group">
+                <label>Vehicle Number</label>
+                <input type="text" id="ambVehicle" class="form-input" placeholder="XX-00-YY-0000">
+            </div>
+
+            <div class="form-group">
+                <label>Assign Driver</label>
+                <select id="ambDriver" class="form-input">
+                    <option value="">-- Select Driver --</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button class="btn btn-primary" onclick="saveAmbulance()">Register</button>
+                <button class="btn" onclick="closeModal('ambModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            checkAuthRedirect();
+            setupSidebar();
+            loadAmbulances();
+        });
+
+        async function loadAmbulances() {
+            const ambulances = await apiCall('/ambulances');
+            const tbody = document.getElementById('ambTable');
+            tbody.innerHTML = '';
+
+            if (ambulances) {
+                ambulances.forEach(a => {
+                    let badgeClass = 'badge-offline';
+                    if (a.status === 'Available') badgeClass = 'badge-available';
+                    if (a.status === 'On Duty') badgeClass = 'badge-busy';
+
+                    const row = `
+                        <tr>
+                            <td style="font-weight: bold;">${a.vehicle_number}</td>
+                            <td>${a.driver_name || '<span style="color:var(--text-secondary)">Unassigned</span>'}</td>
+                            <td><span class="badge ${badgeClass}">${a.status}</span></td>
+                            <td>${a.current_lat ? `Lat: ${a.current_lat}<br>Lng: ${a.current_lng}` : 'Unknown'}</td>
+                            <td>
+                                <!-- Placeholder for future actions like maintenance toggle -->
+                                <button class="btn" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;" disabled>Details</button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            }
+        }
+
+        async function openAmbModal() {
+            document.getElementById('ambModal').classList.add('active');
+            // Load drivers (users with role 'driver')
+            const users = await apiCall('/users'); // We need to implement this endpoint properly in users.html context too
+            const driverSelect = document.getElementById('ambDriver');
+            driverSelect.innerHTML = '<option value="">-- Select Driver --</option>';
+
+            if (users) {
+                users.filter(u => u.role === 'driver').forEach(u => {
+                    driverSelect.innerHTML += `<option value="${u.id}">${u.name} (${u.phone})</option>`;
+                });
+            }
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        async function saveAmbulance() {
+            const vehicle = document.getElementById('ambVehicle').value;
+            const driverId = document.getElementById('ambDriver').value;
+
+            if (!vehicle) { alert('Vehicle number required'); return; }
+
+            await apiCall('/ambulances/', 'POST', {
+                vehicle_number: vehicle,
+                driver_user_id: driverId || null
+            });
+
+            closeModal('ambModal');
+            loadAmbulances();
+        }
+    </script>
+</body>
+
+</html>

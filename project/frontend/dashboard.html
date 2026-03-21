@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQ Admin | Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar" id="sidebar">
+            <!-- Injected by main.js -->
+        </aside>
+
+        <main class="main-content">
+            <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>Mission Control</h1>
+                    <p style="color: var(--text-secondary);">Real-time system overview</p>
+                </div>
+                <div id="dateDisplay" style="font-weight: 600; color: var(--text-secondary);"></div>
+            </header>
+
+            <!-- Key Stats -->
+            <div class="card-grid">
+                <div class="card" style="border-left: 4px solid var(--emergency-red);">
+                    <div class="stat-label">Active Emergencies</div>
+                    <div class="stat-value" id="stat-emg" style="color: var(--emergency-red);">--</div>
+                    <div style="font-size: 0.875rem;">Requires Attention</div>
+                </div>
+
+                <div class="card" style="border-left: 4px solid var(--primary-blue);">
+                    <div class="stat-label">Available Ambulances</div>
+                    <div class="stat-value" id="stat-amb" style="color: var(--primary-blue);">--</div>
+                    <div style="font-size: 0.875rem;">Ready for dispatch</div>
+                </div>
+
+                <div class="card" style="border-left: 4px solid var(--success-green);">
+                    <div class="stat-label">Active Hospitals</div>
+                    <div class="stat-value" id="stat-hosp" style="color: var(--success-green);">--</div>
+                    <div style="font-size: 0.875rem;">Online & Receiving</div>
+                </div>
+            </div>
+
+            <!-- Quick View: Recent Emergencies -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                    <h3>Recent Emergencies</h3>
+                    <a href="emergencies.html" style="font-size: 0.875rem;">View All -></a>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Patient</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentEmgTable">
+                            <tr>
+                                <td colspan="5" style="text-align: center;">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            checkAuthRedirect();
+            setupSidebar();
+
+            // Set Date
+            document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Load Stats
+            const stats = await apiCall('/dashboard/stats');
+            if (stats) {
+                document.getElementById('stat-emg').innerText = stats.active_emergencies;
+                document.getElementById('stat-amb').innerText = stats.available_ambulances;
+                document.getElementById('stat-hosp').innerText = stats.active_hospitals;
+            }
+
+            // Load Recent Emergencies
+            const emgs = await apiCall('/emergencies');
+            const tbody = document.getElementById('recentEmgTable');
+            tbody.innerHTML = '';
+
+            if (emgs && emgs.length > 0) {
+                // Show top 5
+                emgs.slice(0, 5).forEach(emg => {
+                    // Logic for badges
+                    let statusColor = 'badge-offline';
+                    if (emg.status === 'Pending') statusColor = 'badge-busy'; // Red
+                    if (emg.status === 'Assigned') statusColor = 'badge-warning'; // Yellowish?
+                    if (emg.status === 'Resolved') statusColor = 'badge-available'; // Green
+
+                    // define inline style for badge-warning if not in css
+                    const badgeStyle = emg.status === 'Pending' ? 'background:#fee2e2; color:#ef4444;' :
+                        emg.status === 'Assigned' ? 'background:#fef3c7; color:#d97706;' :
+                            'background:#dcfce7; color:#166534;';
+
+                    const row = `
+                        <tr>
+                            <td>#${emg.id}</td>
+                            <td>${emg.patient_name}</td>
+                            <td><span style="font-weight: bold; color: ${emg.severity === 'Critical' ? 'var(--emergency-red)' : 'inherit'}">${emg.severity}</span></td>
+                            <td><span class="badge" style="${badgeStyle}">${emg.status}</span></td>
+                            <td>${emg.location_address}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No activity recorded.</td></tr>';
+            }
+        });
+    </script>
+</body>
+
+</html>

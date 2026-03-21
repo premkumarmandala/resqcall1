@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ResQ Diagnostics</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 2rem;
+        }
+
+        .pass {
+            color: green;
+        }
+
+        .fail {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>System Diagnostics</h1>
+    <button onclick="runTests()" style="padding: 10px 20px; font-size: 16px;">Run Checks</button>
+    <div id="results" style="margin-top: 20px;"></div>
+
+    <script src="js/main.js"></script>
+    <script>
+        async function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = 'Running...';
+
+            function log(msg, status) {
+                const color = status ? 'green' : 'red';
+                const icon = status ? '✅' : '❌';
+                results.innerHTML += `<div style="color:${color}; margin: 5px 0;">${icon} ${msg}</div>`;
+            }
+            results.innerHTML = '';
+
+            // Test 1: API Connection
+            try {
+                // Try fetching auth status or root
+                const res = await fetch('http://localhost:5000/');
+                const data = await res.json();
+                log('Backend API Connection: OK', true);
+            } catch (e) {
+                log('Backend API Connection: FAILED (' + e.message + ')', false);
+                log('Make sure "python -m backend.app" is running!', false);
+            }
+
+            // Test 2: LocalStorage Data
+            try {
+                const token = getToken();
+                const user = getUser();
+                if (token) {
+                    log('Auth Token: Found', true);
+                    if (user && Object.keys(user).length > 0) {
+                        log('User Data: Found (' + (user.name || 'No Name') + ')', true);
+                    } else {
+                        log('User Data: MISSING/CORRUPT. Please Logout and Login again.', false);
+                    }
+                } else {
+                    log('Auth Token: Not Found (You need to login)', true);
+                }
+            } catch (e) {
+                log('LocalStorage Check: FAILED (' + e.message + ')', false);
+            }
+
+            // Test 3: Sidebar Logic Simulation
+            try {
+                const user = getUser();
+                const name = user.name || 'Admin';
+                log('Sidebar Rendering Logic: OK', true);
+            } catch (e) {
+                log('Sidebar Rendering Logic: CRASHED (' + e.message + ')', false);
+            }
+        }
+
+        // Auto run
+        setTimeout(runTests, 500);
+    </script>
+</body>
+
+</html>

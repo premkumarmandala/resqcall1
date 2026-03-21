@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ResQ Admin | Hospitals</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h1>Manage Hospitals</h1>
+                <div>
+                    <button class="btn btn-primary" onclick="openHospitalModal()">+ Add New Hospital</button>
+                    <button class="btn" style="background:var(--success-green); color:white; margin-left:0.5rem;"
+                        onclick="generateInvite()">📧 Send Invite</button>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Contact & Address</th>
+                                <th>Resources (Beds/ICU)</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hospitalTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Hospital Modal -->
+    <div class="modal" id="hospitalModal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Add Hospital</h3>
+            <input type="hidden" id="hospId">
+
+            <div class="form-group">
+                <label>Hospital Name</label>
+                <input type="text" id="hospName" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                <input type="text" id="hospAddress" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>Contact Phone</label>
+                <input type="text" id="hospPhone" class="form-input" required>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <div class="form-group" style="flex:1;">
+                    <label>Total Beds</label>
+                    <input type="number" id="hospBeds" class="form-input" value="0">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>ICU Beds</label>
+                    <input type="number" id="hospICU" class="form-input" value="0">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button class="btn btn-primary" onclick="saveHospital()">Save Hospital</button>
+                <button class="btn" onclick="closeModal('hospitalModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            checkAuthRedirect();
+            setupSidebar();
+            loadHospitals();
+        });
+
+        async function loadHospitals() {
+            const res = await apiCall('/hospitals');
+            const tbody = document.getElementById('hospitalTable');
+            tbody.innerHTML = '';
+
+            if (res && res.error) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding:2rem;">Error: ${res.message}</td></tr>`;
+                return;
+            }
+
+            if (res && Array.isArray(res)) {
+                if (res.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem;">No hospitals found.</td></tr>';
+                    return;
+                }
+                res.forEach(h => {
+                    let statusClass = 'badge-offline';
+                    if (h.status === 'Active') statusClass = 'badge-available';
+                    if (h.status === 'Temporarily Full') statusClass = '';
+
+                    const statusBadge = `<span class="badge ${statusClass}">${h.status || (h.is_active ? 'Active' : 'Inactive')}</span>`;
+
+                    let facilityTags = '';
+                    if (h.has_trauma) facilityTags += '<span style="font-size:0.7rem; background:#fee2e2; color:#b91c1c; padding:2px 6px; border-radius:4px; margin-right:4px;">Trauma</span>';
+                    if (h.has_blood_bank) facilityTags += '<span style="font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:4px; margin-right:4px;">Blood Bank</span>';
+                    else facilityTags += '<span style="font-size:0.7rem; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; margin-right:4px;">No Blood Bank ⚠️</span>';
+
+                    const row = `
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600;">${h.name}</div>
+                                <div style="margin-top:4px;">${facilityTags}</div>
+                            </td>
+                            <td>
+                                <div>${h.contact_phone}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${h.city || ''} ${h.address}</div>
+                            </td>
+                            <td>
+                                <div title="Regular Beds">🛏️ ${h.available_beds} / ${h.total_beds}</div>
+                                <div title="ICU Beds" style="color: var(--emergency-red); margin-top:4px;">🏥 ${h.available_icu_beds} / ${h.icu_beds}</div>
+                            </td>
+                            <td>${statusBadge}</td>
+                            <td>
+                                <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background: var(--primary-blue); color:white;" onclick="window.location.href='register_hospital.html?id=${h.id}'">Edit / View</button>
+                                <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background: var(--border-color);" onclick="toggleStatus(${h.id}, ${h.is_active})">
+                                    ${h.status === 'Active' ? 'Close' : 'Open'}
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            }
+        }
+
+        function openHospitalModal() {
+            window.location.href = 'register_hospital.html';
+        }
+
+        async function toggleStatus(id, currentStatus) {
+            const nextStatus = currentStatus ? 'Inactive' : 'Active';
+            await apiCall(`/hospitals/${id}`, 'PUT', { status: nextStatus, is_active: !currentStatus });
+            loadHospitals();
+        }
+
+        async function generateInvite() {
+            const email = prompt("Enter Hospital Email Address to send invite:");
+            if (email) {
+                const res = await apiCall('/hospitals/invite', 'POST', { email });
+                if (res.message.includes('not configured')) {
+                    // Fallback
+                    prompt("Email not configured. Copy this link instead:", window.location.origin + '/register_hospital.html');
+                } else {
+                    alert(res.message);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
