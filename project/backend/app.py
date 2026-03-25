@@ -61,6 +61,11 @@ def create_app():
         return jsonify({
             'GOOGLE_MAPS_API_KEY': app.config.get('GOOGLE_MAPS_API_KEY', '')
         })
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        response = jsonify({"message": "Internal Server Error", "error": str(e)})
+        response.status_code = 500
+        return response
         
     return app
 

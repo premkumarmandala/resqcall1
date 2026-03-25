@@ -50,15 +50,25 @@ async function apiCall(endpoint, method = 'GET', data = null) {
             return null;
         }
 
-        const json = await res.json();
+        let json = null;
+        try {
+            const text = await res.text();
+            json = JSON.parse(text);
+        } catch (e) {
+            // Not a JSON response, likely an HTML 500 server error
+            if (!res.ok) {
+                return { error: true, message: `Server error (${res.status}): Please check backend logs.` };
+            }
+        }
+
         // If the backend returns a message but it's an error status
         if (!res.ok) {
-            return { error: true, message: json.message || 'Request failed' };
+            return { error: true, message: (json && json.message) ? json.message : 'Request failed' };
         }
         return json;
     } catch (err) {
         console.error('Network Error:', err);
-        return { error: true, message: 'Network Error: Backend not reachable at ' + API_URL };
+        return { error: true, message: 'Network/CORS Error: Backend not reachable at ' + API_URL + '\\nThis usually means the backend is returning a 500 Error without CORS headers (e.g., Database connection failure) or not running.' };
     }
 }
 
