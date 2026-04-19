@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from backend.db import mysql
 from backend.utils import token_required, send_sms_simulation
 from google import genai
+from typing import Any, Dict, List, Optional, cast
 import math
 import os
 import json
@@ -98,7 +99,7 @@ def analyze_symptoms(current_user):
     
     required_speciality = analysis.get('speciality', 'General')
     
-    capable_hospitals = []
+    capable_hospitals: List[Dict[str, Any]] = []
     
     for hosp in hospitals:
         # Check capabilities based on speciality
@@ -137,8 +138,8 @@ def analyze_symptoms(current_user):
     ambulances = cursor.fetchall()
     cursor.close()
     
-    nearest_ambulance = None
-    min_amb_dist = 999999
+    nearest_ambulance: Optional[Dict[str, Any]] = None
+    min_amb_dist: float = float('inf')
     
     for amb in ambulances:
         if amb.get('current_lat') and amb.get('current_lng'):
@@ -147,7 +148,7 @@ def analyze_symptoms(current_user):
                 min_amb_dist = dist
                 nearest_ambulance = amb
     
-    response_data = {
+    response_data: Dict[str, Any] = {
         'analysis': analysis,
         'nearby_hospitals': [],
         'nearest_hospital': None,
@@ -170,7 +171,7 @@ def analyze_symptoms(current_user):
 
     if nearest_hospital:
         response_data['nearest_hospital'] = response_data['nearby_hospitals'][0]
-        response_data['distance_km'] = round(min_dist, 2)
+        response_data['distance_km'] = round(float(min_dist), 2)
         
         # 3. Send SMS (Simulation)
         msg = f"ResQCall Alert: Nearest hospital is {nearest_hospital['name']} ({round(min_dist, 2)}km). Advice: {analysis['advice']}"
@@ -185,7 +186,7 @@ def analyze_symptoms(current_user):
             'current_lat': nearest_ambulance.get('current_lat'),
             'current_lng': nearest_ambulance.get('current_lng')
         }
-        response_data['ambulance_distance_km'] = round(min_amb_dist, 2)
+        response_data['ambulance_distance_km'] = round(float(min_amb_dist), 2)
 
     return jsonify(response_data)
 
