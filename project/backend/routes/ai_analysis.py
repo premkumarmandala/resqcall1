@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from backend.db import mysql
 from backend.utils import token_required, send_sms_simulation
-import google.generativeai as genai
+from google import genai
 import math
 import os
 import json
@@ -41,8 +41,7 @@ def get_ai_analysis(symptoms):
             "advice": "Please consult a doctor. (API Key Missing)"
         }
         
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash') # Or 'gemini-pro'
+    client = genai.Client(api_key=api_key)
     
     prompt = f"""
     Analyze the following medical symptoms silently.
@@ -58,7 +57,10 @@ def get_ai_analysis(symptoms):
     """
     
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
         text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(text)
         return result
@@ -200,8 +202,7 @@ def chat_with_bot(current_user):
     if not api_key:
         return jsonify({'reply': "I am unable to connect to my brain. API Key is missing."})
         
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    client = genai.Client(api_key=api_key)
     
     prompt = f"""
     You are ResQ, an emergency medical assistant AI.
@@ -213,7 +214,10 @@ def chat_with_bot(current_user):
     """
     
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
         text = response.text.replace('*', '').strip() # Strip markdown asterisks to keep formatting simple
         return jsonify({'reply': text})
     except Exception as e:

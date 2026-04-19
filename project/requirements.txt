@@ -5,5 +5,5 @@ PyJWT==2.8.0
 bcrypt==5.0.0
 python-dotenv
 twilio==8.1.0
-google-generativeai
+google-genai
 gunicorn==21.2.0
