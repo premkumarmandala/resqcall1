@@ -942,7 +942,7 @@
                     const dist = getDistanceFromLatLonInKm(userLat, userLng, h.latitude, h.longitude);
                     h.tempDist = dist; // Store for display
                     if (dist <= 50) nearby.push(h);
-                    else if (dist > 50 && dist <= 100) regional.push(h);
+                    else regional.push(h);
                 }
             });
 
