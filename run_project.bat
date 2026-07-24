@@ -26,7 +26,7 @@ start "ResQ Frontend" /D "project\frontend" cmd /k "python -m http.server 8080"
 echo.
 echo Opening Application...
 timeout /t 3 > nul
-start http://localhost:8080/login.html
+start http://localhost:8080/user_app.html
 
 echo.
 echo ==========================================

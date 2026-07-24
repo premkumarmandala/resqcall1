@@ -368,9 +368,10 @@
     <div class="app-container">
         <!-- Main Home Screen -->
         <div id="main-view" style="display: flex; flex-direction: column; flex: 1;">
-            <div class="header">
+            <div class="header" style="position: relative;">
                 <h1>ResQCall</h1>
                 <p>24/7 Emergency Response</p>
+                <a href="login.html" style="position: absolute; top: 15px; right: 20px; color: rgba(255,255,255,0.85); font-size: 0.8rem; text-decoration: none; font-weight: 600; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 12px;">Staff Login</a>
             </div>
 
             <div class="content">
@@ -555,11 +556,6 @@
         initTwilio();
 
         async function startEmergency() {
-            if (!isLoggedIn()) {
-                window.location.href = 'login.html';
-                return;
-            }
-            
             window.location.href = 'tel:9676097120';
 
             // Show Call Interface immediately

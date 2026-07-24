@@ -44,7 +44,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
 
         if (res.status === 401) {
             console.warn('Unauthorized. Redirecting...');
-            if (window.location.pathname.indexOf('login.html') === -1) {
+            if (window.location.pathname.indexOf('login.html') === -1 && window.location.pathname.indexOf('user_app.html') === -1) {
                 logout();
             }
             return null;

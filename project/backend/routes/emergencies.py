@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from backend.db import mysql
-from backend.utils import token_required
+from backend.utils import token_required, token_optional
 
 emergencies_bp = Blueprint('emergencies', __name__)
 
@@ -87,11 +87,11 @@ def get_emergencies(current_user):
     return jsonify(emergencies)
 
 @emergencies_bp.route('/', methods=['POST'])
-@token_required
+@token_optional
 def create_emergency(current_user):
-    data = request.get_json()
-    patient = data.get('patient_name', current_user['name'])
-    contact = data.get('contact_number', current_user['phone'])
+    data = request.get_json() or {}
+    patient = data.get('patient_name') or (current_user.get('name') if current_user else 'Emergency Guest')
+    contact = data.get('contact_number') or (current_user.get('phone') if current_user else 'N/A')
     location = data.get('location_address')
     lat = data.get('location_lat')
     lng = data.get('location_lng')
@@ -100,19 +100,21 @@ def create_emergency(current_user):
     assigned_ambulance_id = data.get('assigned_ambulance_id')
     assigned_hospital_id = data.get('assigned_hospital_id')
     status = 'Assigned' if assigned_ambulance_id else 'Pending'
+    user_id_val = current_user.get('id') if (isinstance(current_user, dict) and current_user.get('id')) else None
     
     cursor = mysql.connection.cursor()
     
-    # Check if user already has an active emergency
-    cursor.execute("SELECT id FROM emergencies WHERE user_id=%s AND status IN ('Pending', 'Assigned')", (current_user['id'],))
-    if cursor.fetchone():
-        cursor.close()
-        return jsonify({'message': 'You already have an active emergency request'}), 400
+    # Check if user already has an active emergency (only for registered users)
+    if user_id_val:
+        cursor.execute("SELECT id FROM emergencies WHERE user_id=%s AND status IN ('Pending', 'Assigned')", (user_id_val,))
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({'message': 'You already have an active emergency request'}), 400
 
     cursor.execute("""
         INSERT INTO emergencies (patient_name, contact_number, location_address, location_lat, location_lng, severity, emergency_type, user_id, assigned_ambulance_id, assigned_hospital_id, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (patient, contact, location, lat, lng, severity, emergency_type, current_user['id'], assigned_ambulance_id, assigned_hospital_id, status))
+    """, (patient, contact, location, lat, lng, severity, emergency_type, user_id_val, assigned_ambulance_id, assigned_hospital_id, status))
     
     if assigned_ambulance_id:
         cursor.execute("UPDATE ambulances SET status='On Duty' WHERE id=%s", (assigned_ambulance_id,))

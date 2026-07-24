@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from backend.db import mysql
-from backend.utils import token_required, send_sms_simulation
+from backend.utils import token_required, token_optional, send_sms_simulation
 from google import genai
 from typing import Any, Dict, List, Optional, cast
 import math
@@ -75,7 +75,7 @@ def get_ai_analysis(symptoms):
         }
 
 @ai_analysis_bp.route('/analyze', methods=['POST'])
-@token_required
+@token_optional
 def analyze_symptoms(current_user):
     data = request.get_json()
     symptoms = data.get('symptoms')

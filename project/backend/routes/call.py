@@ -6,7 +6,7 @@ from twilio.jwt.access_token.grants import VoiceGrant
 from twilio.twiml.voice_response import VoiceResponse, Dial
 from twilio.rest import Client
 from backend.db import mysql
-from backend.utils import token_required
+from backend.utils import token_required, token_optional
 
 # Blueprint for Twilio Call Handling and Admin Logs
 call_bp = Blueprint('call_bp', __name__)
@@ -14,14 +14,15 @@ call_bp = Blueprint('call_bp', __name__)
 # --- User Call Logic (In-Browser Phone) ---
 
 @call_bp.route('/token', methods=['POST'])
-@token_required
+@token_optional
 def get_capability_token(current_user):
     """Generates a capability token for the browser client."""
     account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
     api_key = os.environ.get('TWILIO_API_KEY')
     api_secret = os.environ.get('TWILIO_API_SECRET')
     twiml_app_sid = os.environ.get('TWILIO_TWIML_APP_SID')
-    identity = str(g.user_id) if hasattr(g, 'user_id') else 'guest'
+    user_id_val = current_user.get('id') if isinstance(current_user, dict) else None
+    identity = str(user_id_val) if user_id_val else 'guest'
 
     if not all([account_sid, api_key, api_secret, twiml_app_sid]):
         return jsonify({'error': True, 'message': 'Twilio config missing'}), 500

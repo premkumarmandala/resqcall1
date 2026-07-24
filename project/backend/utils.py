@@ -38,6 +38,32 @@ def token_required(f):
     
     return decorated
 
+def token_optional(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        current_user = {'id': None, 'name': 'Emergency Guest', 'phone': 'Guest', 'role': 'guest'}
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(" ")[1]
+        
+        if token and token != 'null' and token != 'undefined':
+            try:
+                data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=["HS256"])
+                cursor = mysql.connection.cursor()
+                cursor.execute("SELECT * FROM users WHERE id = %s", (data['user_id'],))
+                user = cursor.fetchone()
+                cursor.close()
+                if user:
+                    current_user = user
+            except Exception:
+                pass
+            
+        return f(current_user, *args, **kwargs)
+    
+    return decorated
+
 def admin_required(f):
     @wraps(f)
     def decorated(current_user, *args, **kwargs):
