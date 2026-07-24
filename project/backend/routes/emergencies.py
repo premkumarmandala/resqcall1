@@ -5,8 +5,11 @@ from backend.utils import token_required, token_optional
 emergencies_bp = Blueprint('emergencies', __name__)
 
 @emergencies_bp.route('/active', methods=['GET'])
-@token_required
+@token_optional
 def get_active_emergency(current_user):
+    user_id_val = current_user.get('id') if isinstance(current_user, dict) else None
+    if not user_id_val:
+        return jsonify(None)
     cursor = mysql.connection.cursor()
     # Find latest pending or assigned emergency for this user
     query = """
@@ -60,11 +63,14 @@ def get_active_emergency(current_user):
     return jsonify(emergency)
 
 @emergencies_bp.route('/history', methods=['GET'])
-@token_required
+@token_optional
 def get_my_history(current_user):
+    user_id_val = current_user.get('id') if isinstance(current_user, dict) else None
+    if not user_id_val:
+        return jsonify([])
     cursor = mysql.connection.cursor()
     query = "SELECT * FROM emergencies WHERE user_id = %s ORDER BY created_at DESC"
-    cursor.execute(query, (current_user['id'],))
+    cursor.execute(query, (user_id_val,))
     history = cursor.fetchall()
     cursor.close()
     return jsonify(history)

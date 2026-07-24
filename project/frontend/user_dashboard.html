@@ -768,9 +768,8 @@
         };
 
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!isLoggedIn()) window.location.href = 'login.html';
             const user = getUser();
-            document.getElementById('uName').innerText = user.name;
+            document.getElementById('uName').innerText = user.name || 'Emergency Guest';
 
             // loadGoogleMaps(); // Function removed, handled by fetchConfigAndLoadMaps
             setTimeout(initMap, 1000); // Wait slightly for script payload to load or fall back

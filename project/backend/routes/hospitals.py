@@ -1,11 +1,11 @@
 from flask import Blueprint, request, jsonify
 from backend.db import mysql
-from backend.utils import token_required, admin_required
+from backend.utils import token_required, token_optional, admin_required
 
 hospitals_bp = Blueprint('hospitals', __name__)
 
 @hospitals_bp.route('/', methods=['GET'])
-@token_required
+@token_optional
 def get_hospitals(current_user):
     cursor = mysql.connection.cursor()
     cursor.execute("SELECT * FROM hospitals")
